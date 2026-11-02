@@ -1,16 +1,5 @@
 # Phase 1 — Comparison Report
 
-> **Note to instructor:** Phase 1 was deployed using my personal Google Cloud account
-> (babasardou@gmail.com, project eurecomgpt) instead of my Eurecom account. My Eurecom
-> account (baptiste.sardou@eurecom.fr) was locked by Google since Thursday Oct 23 — Google
-> began enforcing 2-Step Verification on Oct 20 and systematically refused to verify me
-> ("We couldn't verify it's you") on every attempt, both from PC and mobile, even after
-> adding a recovery phone. This made it impossible to enable the Compute/Artifact Registry
-> APIs or link a billing account to the Eurecom project. I emailed you on Monday Oct 26 to
-> request approval; multiple other students reported the same issue in the class group chat.
-> All deployments, measurements, and teardown were performed identically to spec — only the
-> hosting GCP project changed.
-
 ---
 
 ## 1. Setup facts
@@ -37,26 +26,27 @@ echo-subnet
 
 | Platform | Cold (ms) | Warm median (ms) |
 |---|---|---|
-| IaaS VM | <!--answer:vm_cold_ms-->254.4<!--/answer--> | <!--answer:vm_warm_median_ms-->212.4<!--/answer--> |
-| Cloud Run | <!--answer:cloudrun_cold_ms-->129.9<!--/answer--> | <!--answer:cloudrun_warm_median_ms-->146.5<!--/answer--> |
-| Cloud Function | <!--answer:function_cold_ms-->1164.9<!--/answer--> | <!--answer:function_warm_median_ms-->131.6<!--/answer--> |
+| IaaS VM | <!--answer:vm_cold_ms-->284.4<!--/answer--> | <!--answer:vm_warm_median_ms-->209.9<!--/answer--> |
+| Cloud Run | <!--answer:cloudrun_cold_ms-->1768.7<!--/answer--> | <!--answer:cloudrun_warm_median_ms-->637.8<!--/answer--> |
+| Cloud Function | <!--answer:function_cold_ms-->1653.1<!--/answer--> | <!--answer:function_warm_median_ms-->633.8<!--/answer--> |
 
 <!--answer:latency_plot-->
 Phase 1 — deployment measurements (output of measure.py)
 ------------------------------------------------------------
-[OK  ] vm        cold=  254.4ms  warm_median=  212.4ms
+[OK  ] vm        cold=  284.4ms  warm_median=  209.9ms
+            #############
+[OK  ] cloudrun  cold= 1768.7ms  warm_median=  637.8ms
             ########################################
-[OK  ] cloudrun  cold=  129.9ms  warm_median=  146.5ms
-            ############################
-[OK  ] function  cold= 1164.9ms  warm_median=  131.6ms
-            #########################
+[OK  ] function  cold= 1653.1ms  warm_median=  633.8ms
+            ########################################
 ------------------------------------------------------------
 
-The VM shows no meaningful cold start (254 ms vs 212 ms warm): its container never stops, so
-every request is effectively warm. Cloud Run's cold (130 ms) is actually lower than its warm
-median (147 ms), because Google kept an instance warm from recent testing — the "cold" sample
-here is not a true cold start. The Function is the only one showing a real cold-start cost:
-1165 ms vs 132 ms warm, an 8.8x penalty, dominated by image pull and Python interpreter boot.
+For the VM, the cold number is basically the same as the warm one (284 ms vs 210 ms). This
+makes sense because the container never stops, so there is no real cold start to measure.
+Cloud Run and the Function both show a clear cold cost: around 2.7 times the warm latency.
+I think most of that comes from the image pull and the Python interpreter starting up.
+Also I noticed that the warm medians are almost identical (638 ms and 634 ms), which was
+surprising at first but I explain it in section 4.
 <!--/answer-->
 
 ---
@@ -64,24 +54,24 @@ here is not a true cold start. The Function is the only one showing a real cold-
 ## 3. Per-platform analysis
 
 <!--answer:scaling_behaviour-->
-The IaaS VM creates nothing: a single e2-micro instance handles everything, extra requests
-queue behind gunicorn's 1 worker x 8 threads, and the ceiling is the machine itself
-(--machine-type=e2-micro). Cloud Run auto-provisions new container instances on demand,
-one per concurrent request burst, capped at 3 by the --max-instances=3 flag I set at
-deploy. The Cloud Function behaves identically — it spins up fresh instances to absorb load,
-also capped at 3 by my --max-instances=3. Beyond that cap, both serverless targets queue
-requests until an instance frees up.
+On the VM nothing happens when the load goes up. I only have one e2-micro and gunicorn
+runs with 1 worker and 8 threads, so when more requests arrive they just wait in the
+queue. The hard limit is the machine itself, I chose e2-micro to stay in the free tier.
+For Cloud Run, Google creates new container instances automatically when traffic grows,
+but I capped it at 3 instances with the --max-instances=3 flag. The Function works the
+same way, also capped at 3. So once I hit 3 instances on the serverless side, the extra
+requests have to wait for one to be free again.
 <!--/answer-->
 
 <!--answer:deployment_effort-->
-The three platforms demanded wildly different amounts of work. The VM required the most: a
-custom VPC (echo-net) and subnet (echo-subnet), two firewall rules (allow-echo-8080 for the
-app, allow-echo-ssh for access), a dedicated service account with roles/artifactregistry.reader,
-then SSH into the instance to apt-install Docker, authenticate it against Artifact Registry,
-pull the image, and run it detached with --restart=always. Cloud Run was a single
-gcloud run deploy command: pass the same image, pick a region, set min/max instances. Google
-handled networking, HTTPS, scaling and a public URL. The Function was similarly one-shot:
-gcloud functions deploy --source=. and Google built, hosted and routed everything from main.py.
+The three platforms are very different in terms of work. The VM took the most time: I had
+to create the VPC echo-net, the subnet echo-subnet, two firewall rules (one for port 8080,
+one for SSH), a service account with the artifactregistry.reader role, then SSH into the
+VM to install Docker with apt, authenticate it to Artifact Registry, pull my image and run
+the container. For Cloud Run it was only one command (gcloud run deploy) with the same
+image, a region and the min/max instances. Google took care of the HTTPS, the URL and the
+scaling. The Function was the same style, one command with --source=. and Google built the
+image for me from main.py.
 <!--/answer-->
 
 ---
@@ -91,25 +81,27 @@ gcloud functions deploy --source=. and Google built, hosted and routed everythin
 <!--answer:run_services_list-->
 SERVICE: echo
 REGION: us-central1
-URL: https://echo-748214485908.us-central1.run.app
-LAST DEPLOYED BY: service-748214485908@gcf-admin-robot.iam.gserviceaccount.com
-LAST DEPLOYED AT: 2026-10-27T10:47:55.424943Z
+URL: https://echo-696778150088.us-central1.run.app
+LAST DEPLOYED BY: service-696778150088@gcf-admin-robot.iam.gserviceaccount.com
+LAST DEPLOYED AT: 2026-11-02T16:29:39.708557Z
 
 SERVICE: echo-bot
 REGION: us-central1
-URL: https://echo-bot-748214485908.us-central1.run.app
-LAST DEPLOYED BY: babasardou@gmail.com
-LAST DEPLOYED AT: 2026-10-27T10:46:11.024671Z
+URL: https://echo-bot-696778150088.us-central1.run.app
+LAST DEPLOYED BY: baptiste.sardou@eurecom.fr
+LAST DEPLOYED AT: 2026-11-02T16:28:36.883879Z
 <!--/answer-->
 
 <!--answer:convergence_explanation-->
-gcloud run services list shows two Cloud Run services, not one: echo-bot (the one I deployed
-with gcloud run deploy) and echo (my supposedly separate Cloud Function). The Function was
-deployed by gcf-admin-robot — Google's internal service account — but it lives in the exact
-same Cloud Run runtime. Cloud Functions gen2 is, under the hood, Cloud Run with a thin build
-layer (functions-framework wrapping main.py into an HTTP server). That is why the warm
-medians converge (Function 131.6 ms vs Cloud Run 146.5 ms): both execute the same
-gunicorn-equivalent container on the same scheduler. What genuinely differs is only the
-deployment path: Cloud Run takes a pre-built image I pushed to Artifact Registry; Cloud
-Functions takes main.py source and builds the image for me via Cloud Build.
+When I ran gcloud run services list I was surprised to see two services instead of one:
+echo-bot (the Cloud Run I deployed myself) and echo (which is supposed to be my Cloud
+Function). The Function was deployed by gcf-admin-robot, which is Google internal service
+account, but the service lives in the exact same Cloud Run runtime. So basically a Cloud
+Function gen2 is just a Cloud Run service with an extra build step on top
+(functions-framework wraps main.py as an HTTP server). That is why the warm medians are
+almost the same (633.8 ms vs 637.8 ms, only 4 ms of difference) and the cold starts are
+close too (1653 ms vs 1769 ms). They run the same type of container on the same scheduler.
+The only real difference is how I deploy them: Cloud Run uses a pre-built image I pushed
+to Artifact Registry, the Function takes main.py as source and Google builds the image
+for me with Cloud Build.
 <!--/answer-->
