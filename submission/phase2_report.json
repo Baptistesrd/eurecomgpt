@@ -1,0 +1,30 @@
+{
+  "phase": "2",
+  "environment": {
+    "colab": true
+  },
+  "attention": {
+    "naive_ms": 259.705,
+    "vectorized_ms": 1.231,
+    "speedup": 210.97
+  },
+  "threads": {
+    "1": 2575.643,
+    "2": 2021.481,
+    "4": 2186.202,
+    "8": 3435.136
+  },
+  "devices": {
+    "cpu_ms": 467029.7,
+    "gpu_ms": 13238.6
+  },
+  "training": {
+    "steps": 2000,
+    "final_loss": 1.5207,
+    "param_count": 4935680
+  },
+  "sample": "\nROMEO:\nThat; so so have is restach pasison in me uncle.\n\nFirst Citizen:\nSir, I litters, we the preforment\nUnturs all youther eyes: forth you lovess your vellants;\nReather your-a says Romeo next your s",
+  "model": {
+    "gcs_url": "https://storage.googleapis.com/eurecomgpt2-513516-eurecomgpt/model.safetensors"
+  }
+}
