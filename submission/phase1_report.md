@@ -93,15 +93,5 @@ LAST DEPLOYED AT: 2026-11-02T16:28:36.883879Z
 <!--/answer-->
 
 <!--answer:convergence_explanation-->
-When I ran gcloud run services list I was surprised to see two services instead of one:
-echo-bot (the Cloud Run I deployed myself) and echo (which is supposed to be my Cloud
-Function). The Function was deployed by gcf-admin-robot, which is Google internal service
-account, but the service lives in the exact same Cloud Run runtime. So basically a Cloud
-Function gen2 is just a Cloud Run service with an extra build step on top
-(functions-framework wraps main.py as an HTTP server). That is why the warm medians are
-almost the same (633.8 ms vs 637.8 ms, only 4 ms of difference) and the cold starts are
-close too (1653 ms vs 1769 ms). They run the same type of container on the same scheduler.
-The only real difference is how I deploy them: Cloud Run uses a pre-built image I pushed
-to Artifact Registry, the Function takes main.py as source and Google builds the image
-for me with Cloud Build.
+gcloud run services list shows two Cloud Run services: echo-bot (my cloud run) and echo (my cloud function). The function was deployed by gcf-admin-robot but it runs in the same cloud run runtime. Basically Cloud Functions gen2 is Cloud Run with a build layer on top (functions-framework wraps main.py into an HTTP server). That is why the warm medians are almost the same (633.8 ms vs 637.8 ms) and the cold starts too (1653 ms vs 1769 ms). The only real difference is the deployment: Cloud Run takes a pre-built image I pushed, the Function builds it from main.py with Cloud Build.
 <!--/answer-->
