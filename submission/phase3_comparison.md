@@ -15,20 +15,11 @@
 | Task retries you counted in your --chaos run | <!--answer:chaos_retries-->5<!--/answer--> |
 
 <!--answer:timing_explanation-->
-The ranking is very clear, here is the data I find : local 0.011s, Spark 4.8s, cloud MapReduce
-19.9s. The local run is the fastest by far because everything stays in one process. Spark does
-more work , but it still finishes in 4.8s because it runs on the same Colab machine with no
-network between tasks. The cloud MapReduce is the slowest because each task is a Cloud Run
-function invocation with cold start, auth, and every shuffle write/read goes through Cloud
-Storage. Spark and local are not like-for-like, but local vs cloud MapReduce are the same.
-Indeed we have the same code, the same 60 documents, but 1800x slower just because of
-distributed overhead.
+The ranking is very clear, here are the data that I found : local 0.011s, Spark 4.8s, cloud MapReduce 19.9s. The local run is by far the fastest one beacause the rest stays in one process. Spark do more work, but end up in 4.8 seconds because it runs on the sae machine Colab without network between tasks. The cloud MapReduce is the slowest because each task is an invocation of the cloud run function with cold start, atuh and eah shuffle go through cloud storage. Spark and local are not comparable but local and cloud MapReduce yes. It's the same. Indeed, we have the same code, and documents but it's x1800 slower just because of the overcost.
 <!--/answer-->
 
 <!--answer:counts_interpretation-->
-Spark had 4 stages so 3 shuffle boundaries. The shuffles came from the two reduceByKey calls
-in term_freq and doc_freq, plus the join at the end. For the chaos run with 16 task attempts
-and chaos=0.3, about 5 attempts failed and were retried, which matches the 30% rate.
+Spark had 4 stages so 3 frontiers of shuffle. The shuffles come from two queries reduceByKey in term_frq and doc_freq pus the join at the end. For the chaos run with 16 task attempts and chaos = 0,3, about 5 attemps failed and have been retried, which corresponds to a "coef" of 30%.
 <!--/answer-->
 
 ---
@@ -36,18 +27,11 @@ and chaos=0.3, about 5 attempts failed and were retried, which matches the 30% r
 ## 2. Spark: transformations, actions, lineage
 
 <!--answer:transformations_vs_actions-->
-In spark_tfidf.py flatMap, map, reduceByKey and join are all transformations, they are lazy.
-In the notebook build_tfidf_rdd only builds the lineage graph, nothing runs. Then save_parquet
-also just stores, no compute. The real action is collect in cell 2c, that is what triggers
-Spark to actually run the whole DAG, read the data, do the 4 stages and return the 5975 rows
-to the driver.
+In spark_tfidf.py, flatMap, map, reduceByKey and join are all transformations, they are lazy. In the notebook, build_tfidf_rdd only build the graph of lineage, but nothing executes. Then, save_parquet stocks correcly without any computation. The real action is collect in the cell 2c where it triggers Spark to really execute all the DAG and output the rows to the driver.
 <!--/answer-->
 
 <!--answer:lineage_recovery-->
-If the worker with one partition of the first reduceByKey died, Spark would only recompute
-that one lost partition.. It would re-read the input from ParallelCollectionRDD, re-run
-flatMap and the partial reduce for that partition only. Recovery starts at the shuffle
-boundary of stage 0
+If the worker who has a partition of the first reduceByKey died, Spark would only recompute this lost partition. It would re-read the input from ParallelCollectionRDD, re-execute flatmap and the reduce partial for the parition only. The recuperation starts at the frontier of the shuffle of stage 0.
 <!--/answer-->
 
 ---
